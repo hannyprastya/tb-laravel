@@ -1,0 +1,108 @@
+# .github/workflows/ci.yml (P10 slide 7-9 + P12 slide 18-19):
+# scan dependensi & kode -> uji unit -> build -> uji fungsional -> scan image
+# -> push -> deploy. Semua alat dijalankan lewat Docker (tanpa setup PHP/Node).
+# Tanpa secret apa pun run tetap hijau: Push memakai GITHUB_TOKEN bawaan,
+# Deploy hanya jalan bila variabel repo RENDER_ENABLED = true (README).
+name: ci-cd
+on:
+  push: { branches: [main] }
+  pull_request: { branches: [main] }   # PR: scan + build + test saja
+concurrency:                           # PR baru membatalkan run PR lama
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  build-test-deploy:                   # nama check di ruleset (P10 A.3)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions: { contents: read, packages: write }
+    services:
+      uji-db:                          # PostgreSQL khusus php artisan test
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: latihan   # database uji sekali pakai di runner
+          POSTGRES_DB: uji
+        ports: ["5433:5432"]
+        options: >-
+          --health-cmd "pg_isready -U app" --health-interval 3s
+          --health-timeout 3s --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      # ---- P12: gagal cepat, sebelum build (slide 19)
+      - name: Scan dependensi (composer audit, npm audit)
+        run: |
+          docker run --rm -v "$PWD/web:/app" -w /app composer:2.11.2 \
+            composer audit --locked
+          docker run --rm -v "$PWD/web:/app" -w /app node:24-alpine \
+            npm audit --audit-level=high
+      - name: Scan kode (Semgrep p/default)
+        run: >-
+          docker run --rm -v "$PWD:/src" semgrep/semgrep:1.182.1
+          semgrep scan --config p/default --error --metrics=off --quiet
+      - name: Scan konfigurasi (trivy config) dan secret (trivy fs)
+        # .trivyignore.yaml = risiko yang diterima. trivy fs otomatis memakai
+        # trivy-secret.yaml di folder kerja (-w /src = akar repo): aturan
+        # password + APP_KEY dan allow-rule untuk password latihan saja.
+        run: |
+          T="docker run --rm -v $PWD:/src -w /src aquasec/trivy:0.76.0"
+          $T config --severity HIGH,CRITICAL --exit-code 1 \
+            --ignorefile .trivyignore.yaml .
+          $T fs --scanners secret --exit-code 1 .
+
+      # ---- uji unit/fitur (PHPUnit) dan Larastan di image tahap "uji"
+      - name: Build image uji
+        run: docker build --target uji -t tb-web:uji web
+      - name: Scan kode (Larastan level 5)
+        run: >-
+          docker run --rm tb-web:uji
+          vendor/bin/phpstan analyse --no-progress --memory-limit=1G
+      - name: Uji fitur (php artisan test, PostgreSQL)
+        run: >-
+          docker run --rm --network host
+          -e DATABASE_URL=postgresql://app:latihan@127.0.0.1:5433/uji
+          tb-web:uji php artisan test
+
+      # ---- P10: build dan uji image yang sama dengan yang akan di-push
+      - name: Nama image
+        run: |
+          REPO="${GITHUB_REPOSITORY,,}"
+          echo "IMAGE=ghcr.io/$REPO:${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+      - name: Build
+        run: docker build -t "$IMAGE" web     # konteks build = web/
+      - name: Test (uji fungsional terhadap compose)
+        run: |
+          docker compose up -d --wait
+          curl -fsS --retry 3 --retry-connrefused localhost:8080/health
+          bash tests/fungsional.sh
+      - name: Log aplikasi bila Test gagal
+        if: failure()
+        run: docker compose logs --tail 80
+
+      # ---- P12 slide 18: image dipindai sebelum push; ada CRITICAL = merah
+      - name: Scan image, gagal bila CRITICAL
+        # trivy-action v0.36.0, dikunci SHA penuh (bukan tag)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: ${{ env.IMAGE }}
+          version: v0.76.0
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+      # ---- push hanya dari main; GITHUB_TOKEN berlaku selama job saja
+      - name: Push ke GHCR
+        if: github.event_name == 'push'
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AKTOR: ${{ github.actor }}
+        run: |
+          echo "$TOKEN" | docker login ghcr.io -u "$AKTOR" --password-stdin
+          docker push "$IMAGE"
+      - name: Deploy ke Render (bila RENDER_ENABLED = true)
+        if: github.event_name == 'push' && vars.RENDER_ENABLED == 'true'
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: >-
+          curl -fsS -X POST -G "$HOOK"
+          --data-urlencode "imgURL=$IMAGE"

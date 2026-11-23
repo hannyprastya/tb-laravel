@@ -1,0 +1,35 @@
+# deploy/compose/otel.yml (P11; di modul: docker-compose.otel.yml): Grafana
+# LGTM + aplikasi dengan OpenTelemetry. Dipakai berlapis dengan
+# docker-compose.yml (P11 A.2):
+#   export NIM=NIM_KAMU COMPOSE_FILE=docker-compose.yml:deploy/compose/otel.yml
+#   docker compose up -d --build --wait        # Grafana: http://localhost:3000
+# Path relatif di sini dihitung dari akar repo (folder berkas -f PERTAMA).
+services:
+  lgtm:
+    image: grafana/otel-lgtm:0.37.0     # Grafana 13.2.3 + Tempo, Loki, Prom.
+    ports: ["3000:3000"]                # Grafana
+    volumes:                            # alert + dasbor SLO sebagai kode
+      - ./observability/alert-rules.yaml:/otel-lgtm/grafana/conf/provisioning/alerting/tb.yaml:ro
+      - ./observability/dashboards.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/tb.yaml:ro
+      - ./observability/slo-dashboard.json:/otel-lgtm/tb/slo.json:ro
+  app:
+    build: { context: ./web, dockerfile: Dockerfile.otel }
+    image: tb-web:otel                  # jangan menimpa image produksi
+    environment: &otel
+      OTEL_PHP_AUTOLOAD_ENABLED: "true"        # SDK + instrumentasi Laravel aktif
+      OTEL_SERVICE_NAME: app-${NIM:?isi NIM dulu}  # NIM pemilik codespace
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://lgtm:4318
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_LOGS_EXPORTER: otlp                 # Log::info(...) ke Loki + trace_id
+      OTEL_METRICS_EXPORTER: none              # metrik dibuat Tempo dari span
+    depends_on: [lgtm]
+  worker:                               # job antrean juga punya trace sendiri
+    build: { context: ./web, dockerfile: Dockerfile.otel }
+    image: tb-web:otel
+    environment:
+      <<: *otel
+      OTEL_SERVICE_NAME: worker-${NIM:?isi NIM dulu}
+  scheduler:                            # image sama, tanpa trace
+    build: { context: ./web, dockerfile: Dockerfile.otel }
+    image: tb-web:otel

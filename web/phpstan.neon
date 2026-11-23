@@ -1,0 +1,14 @@
+# phpstan.neon: Larastan (PHPStan + aturan Laravel) level 5 (P12 C).
+# Jalankan dari image uji: docker run --rm tb-web:uji vendor/bin/phpstan analyse
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    level: 5
+    paths:
+        - app
+        - bootstrap/app.php
+        - config
+        - database
+        - routes
+    tmpDir: /tmp/phpstan

@@ -1,0 +1,14 @@
+# deploy/k8s/50-hpa.yaml (P13 A.3): replika web mengikuti CPU (slide 15-17).
+# Butuh metrics-server; ganti nim-00000000 dengan NIM sendiri.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata: { name: web, namespace: nim-00000000 }
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: web }
+  minReplicas: 2
+  maxReplicas: 6                     # WAJIB: batas atas = batas tagihan
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu                    # persen dari requests CPU (100m)
+        target: { type: Utilization, averageUtilization: 60 }

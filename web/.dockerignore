@@ -1,0 +1,40 @@
+# web/.dockerignore: yang TIDAK ikut ke konteks build (P7 slide 24).
+# vendor/ dan public/build dibuat ulang di dalam tahap build, jadi salinan
+# lokal tidak boleh ikut (bisa beda versi PHP/OS).
+.git
+.github/
+.env
+.env.*
+*.sqlite
+*.log
+auth.json
+node_modules/
+vendor/
+public/build/
+public/hot
+public/storage
+# isi storage/ dan bootstrap/cache dari laptop (log, sesi, cache, kunci);
+# foldernya tetap ikut lewat berkas .gitignore di dalamnya
+storage/*.key
+storage/kunci/
+storage/logs/*
+storage/app/private/*
+storage/app/public/*
+storage/framework/cache/data/*
+storage/framework/sessions/*
+storage/framework/testing/*
+storage/framework/views/*
+!storage/**/.gitignore
+bootstrap/cache/*.php
+# hasil uji dan editor
+.phpunit.cache/
+.phpunit.result.cache
+coverage/
+.idea/
+.vscode/
+.DS_Store
+# berkas build itu sendiri dan dokumentasi
+Dockerfile*
+.dockerignore
+docker-compose*.yml
+*.md

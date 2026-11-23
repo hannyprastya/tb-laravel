@@ -1,0 +1,98 @@
+# docker-compose.yml (P7 slide 25-26): starter Laravel lengkap untuk lab.
+#   docker compose up -d --build --wait       # semua service sampai sehat
+#   bash tests/fungsional.sh                  # uji fungsional
+# Lima service, satu image aplikasi (dibangun dari web/):
+#   app        Apache + Laravel (http://localhost:8080)
+#   worker     php artisan queue:work  (menjalankan job antrean)
+#   scheduler  php artisan schedule:work (tugas terjadwal, mis. rekap harian)
+#   db         PostgreSQL 17
+#   floci      emulator AWS (S3 untuk unggah berkas, SQS untuk P14)
+# Password "latihan" dan kunci "test" hanya untuk lab lokal (risiko diterima,
+# lihat trivy-secret.yaml). Produksi memakai secret dari env (README).
+
+x-aplikasi: &aplikasi                # bagian yang sama untuk app/worker/scheduler
+  build: ./web                       # konteks = web/ (Dockerfile, .dockerignore)
+  image: ${IMAGE:-tb-web:dev}        # P10: di CI = image yang diuji lalu di-push
+  environment: &env
+    APP_PEMILIK: ${APP_PEMILIK:-Kelompok 0 - Starter Laravel}
+    APP_URL: ${APP_URL:-http://localhost:8080}
+    PAKSA_APP_URL: ${PAKSA_APP_URL:-0}   # 1 = semua URL dari APP_URL (Codespaces)
+    APP_KEY: ${APP_KEY:-}            # kosong = kunci lab di volume "kunci"
+    KUNCI_LAB: "1"
+    DATABASE_URL: postgresql://app:latihan@db:5432/app
+    QUEUE_CONNECTION: ${QUEUE_CONNECTION:-database}   # sqs = antrean Floci (P14)
+    JADWAL_REKAP: ${JADWAL_REKAP:-55 23 * * *}
+    # Floci dari dalam jaringan compose: http://floci:4566 (BUKAN localhost)
+    AWS_ENDPOINT: http://floci:4566
+    AWS_USE_PATH_STYLE_ENDPOINT: "true"
+    AWS_ACCESS_KEY_ID: test          # kunci palsu khusus Floci
+    AWS_SECRET_ACCESS_KEY: test
+    AWS_DEFAULT_REGION: us-east-1
+    AWS_BUCKET: tb-berkas
+    SQS_PREFIX: http://floci:4566/000000000000
+    SQS_QUEUE: antrean-tb
+  volumes:
+    - kunci:/var/www/html/storage/kunci
+  restart: unless-stopped
+
+services:
+  app:
+    <<: *aplikasi
+    ports: ["8080:8080"]
+    environment:
+      <<: *env
+      MIGRASI_SAAT_START: "1"        # php artisan migrate --force saat start
+      SIAPKAN_FLOCI: "1"             # buat bucket (dan antrean SQS) di Floci
+      WORKERS: ${WORKERS:-4}         # P11 B / P13 C.1: jumlah worker Apache
+      JALANKAN_WORKER: ${JALANKAN_WORKER:-0}   # 1 = mode satu container (Render)
+    healthcheck:                     # --wait menunggu Apache benar-benar siap
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "localhost:8080/healthz"]
+      interval: 3s
+      retries: 40                    # start pertama: migrasi + cache
+    depends_on:
+      db: { condition: service_healthy }
+      floci: { condition: service_healthy }
+
+  worker:
+    <<: *aplikasi
+    command: ["php", "artisan", "queue:work", "--tries=3"]
+    depends_on:
+      app: { condition: service_healthy }   # tunggu migrasi selesai
+
+  scheduler:
+    <<: *aplikasi
+    command: ["php", "artisan", "schedule:work"]
+    depends_on:
+      app: { condition: service_healthy }
+
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: latihan     # hanya untuk latihan lokal
+    volumes: ["dbdata:/var/lib/postgresql/data"]
+    healthcheck:                     # pg_isready tiap 3 detik, maks. 10 kali
+      test: ["CMD", "pg_isready", "-U", "app"]
+      interval: 3s
+      retries: 10
+    restart: unless-stopped
+
+  floci:
+    image: floci/floci:2.4.0         # healthcheck sudah ada di image
+    ports: ["4566:4566"]             # untuk Terraform infra/ dari terminal
+    environment:
+      FLOCI_SERVICES_S3_ENFORCE_AUTH: "true"   # tanda tangan S3 diperiksa
+    restart: unless-stopped
+
+  # php artisan test terhadap database "uji" (dibuat otomatis saat uji):
+  #   docker compose run --rm uji
+  uji:
+    profiles: [uji]                  # tidak ikut "docker compose up"
+    build: { context: ./web, target: uji }
+    image: tb-web:uji
+    environment:
+      DATABASE_URL: postgresql://app:latihan@db:5432/uji
+    depends_on:
+      db: { condition: service_healthy }
+
+volumes: { dbdata: {}, kunci: {} }

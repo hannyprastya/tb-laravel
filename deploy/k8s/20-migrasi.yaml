@@ -1,0 +1,38 @@
+# deploy/k8s/20-migrasi.yaml: php artisan migrate --force sekali jalan (Job),
+# supaya replika web tidak bermigrasi bersamaan. Diulang otomatis sampai db
+# siap (backoffLimit). Setelah image baru: kubectl delete job migrasi, lalu
+# apply lagi.
+apiVersion: batch/v1
+kind: Job
+metadata: { name: migrasi, namespace: nim-00000000 }
+spec:
+  backoffLimit: 6
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata: { labels: { app: migrasi } }
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 33                    # www-data; wajib berupa angka
+        runAsGroup: 33
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: migrasi
+          image: tb-web:1.0
+          imagePullPolicy: IfNotPresent
+          command: [php, artisan, migrate, --force]
+          envFrom: [{ secretRef: { name: tb-rahasia } }]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          resources:
+            requests: { cpu: 100m, memory: 64Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+          volumeMounts:
+            - { name: storage, mountPath: /var/www/html/storage }
+            - { name: cache, mountPath: /var/www/html/bootstrap/cache }
+      volumes:
+        - { name: storage, emptyDir: {} }
+        - { name: cache, emptyDir: {} }

@@ -1,0 +1,3 @@
+variable "nim" {
+  type = string
+}

@@ -1,0 +1,67 @@
+# deploy/k8s/30-web.yaml (P8 B.4, P13): Laravel di Apache. readiness /health
+# (cek DB), liveness /healthz (proses hidup; tidak ikut gagal saat db mati).
+# Image dari: docker build -t tb-web:1.0 web && kind load docker-image ...
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: web, namespace: nim-00000000 }
+spec:
+  replicas: 2                            # HPA (hpa.yaml) mengatur 2-6
+  selector: { matchLabels: { app: web } }
+  template:
+    metadata: { labels: { app: web } }
+    spec:
+      securityContext:                   # P13 C.4 hardening (slide 27)
+        runAsNonRoot: true               # tolak image yang berjalan root
+        runAsUser: 33                    # www-data; wajib berupa angka
+        runAsGroup: 33
+        fsGroup: 33
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: web
+          image: tb-web:1.0
+          imagePullPolicy: IfNotPresent  # image dari kind load, bukan registry
+          envFrom: [{ secretRef: { name: tb-rahasia } }]   # APP_KEY, DATABASE_URL
+          env:
+            - { name: APP_PEMILIK, value: "Kelompok 0 - Starter Laravel" }
+            - { name: MIGRASI_SAAT_START, value: "0" }      # migrasi lewat Job
+            - { name: WORKERS, value: "4" }
+            # Unggah berkas butuh object storage S3-compatible; isi AWS_* di
+            # Secret bila ada. Tanpa itu halaman lain tetap jalan.
+            - { name: AWS_BUCKET, value: tb-berkas }
+          ports: [{ containerPort: 8080 }]
+          readinessProbe:                # siap menerima trafik? (cek DB)
+            httpGet: { path: /health, port: 8080 }
+            periodSeconds: 5
+          livenessProbe:                 # proses hidup? gagal 3x -> restart
+            httpGet: { path: /healthz, port: 8080 }
+            initialDelaySeconds: 10      # beri waktu config/route/view cache
+            periodSeconds: 10
+            failureThreshold: 3
+          lifecycle:                     # jeda 5 dtk sebelum berhenti: Service
+            preStop: { sleep: { seconds: 5 } }   # sempat mencoret Pod ini
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true # tulis hanya ke emptyDir di bawah
+            capabilities: { drop: [ALL] }
+          resources:                     # ukur ulang dengan kubectl top (P13 C.5)
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: 1000m, memory: 384Mi }
+          volumeMounts:
+            - { name: storage, mountPath: /var/www/html/storage }
+            - { name: cache, mountPath: /var/www/html/bootstrap/cache }
+            - { name: run, mountPath: /var/run/apache2 }
+            - { name: lock, mountPath: /var/lock/apache2 }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - { name: storage, emptyDir: {} }
+        - { name: cache, emptyDir: {} }
+        - { name: run, emptyDir: {} }
+        - { name: lock, emptyDir: {} }
+        - { name: tmp, emptyDir: {} }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: web, namespace: nim-00000000 }
+spec:
+  selector: { app: web }
+  ports: [{ port: 80, targetPort: 8080 }]

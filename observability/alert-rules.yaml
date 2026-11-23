@@ -1,0 +1,44 @@
+# alert-rules.yaml (P11 D.1, disimpan sebagai kode): aturan yang dibuat di
+# Grafana lalu diekspor (Alerting › Alert rules › Export). Dimuat otomatis
+# oleh deploy/compose/otel.yml. service=~"app-.+" = semua NIM anggota.
+# Hanya span SERVER (permintaan HTTP ke Laravel) yang dihitung; job antrean
+# (service worker-NIM) tidak ikut. Halaman 503 ramah saat DB mati tetap
+# dihitung error karena statusnya 5xx.
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: tiap-10-detik
+    folder: tb
+    interval: 10s
+    rules:
+      - uid: tb-error-5xx
+        title: error rate 5xx > 5%
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: >-
+                sum(rate(traces_spanmetrics_calls_total{service=~"app-.+",
+                span_kind="SPAN_KIND_SERVER",
+                status_code="STATUS_CODE_ERROR"}[1m]))
+                / sum(rate(traces_spanmetrics_calls_total{service=~"app-.+",
+                span_kind="SPAN_KIND_SERVER"}[1m]))
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0.05] }
+        for: 30s                        # pending period (P11 D.1)
+        noDataState: OK                 # tanpa trafik bukan gangguan
+        execErrState: Error
+        annotations:
+          summary: Error rate 5xx di atas 5% selama 30 detik
+          runbook_url: docs/runbook.md          # ganti dengan URL runbook repo kelompok
+        labels: { tim: tb, sev: "2" }
