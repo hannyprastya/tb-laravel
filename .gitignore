@@ -1,0 +1,15 @@
+# Yang tidak boleh masuk repository (P7 slide 15). web/.gitignore menambah
+# aturan khusus Laravel (vendor/, node_modules/, public/build, ...).
+.env
+.env.*
+!.env.example
+*.pem
+id_ed25519*
+*.dump
+*.tfstate*
+.terraform/
+vendor/
+node_modules/
+# hasil uji lokal
+hasil_k6/
+.DS_Store

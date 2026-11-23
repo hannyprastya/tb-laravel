@@ -1,0 +1,86 @@
+# deploy/k8s/40-latar.yaml: proses latar dari image yang sama dengan web.
+#   worker    php artisan queue:work (boleh lebih dari 1 replika: tiap job
+#             diambil satu worker saja)
+#   scheduler php artisan schedule:work (cukup 1 replika; onOneServer
+#             mencegah tugas dobel bila tidak sengaja lebih dari satu)
+# Tanpa probe HTTP: keduanya tidak membuka port. Bila proses mati (mis. DB
+# putus), container keluar dan Kubernetes menyalakannya lagi.
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: worker, namespace: nim-00000000 }
+spec:
+  replicas: 1                            # naikkan bila antrean menumpuk
+  selector: { matchLabels: { app: worker } }
+  template:
+    metadata: { labels: { app: worker } }
+    spec:
+      terminationGracePeriodSeconds: 40  # job yang sedang jalan sempat selesai
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 33
+        runAsGroup: 33
+        fsGroup: 33
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: worker
+          image: tb-web:1.0
+          imagePullPolicy: IfNotPresent
+          command: [php, artisan, queue:work, --tries=3, --max-time=3600]
+          envFrom: [{ secretRef: { name: tb-rahasia } }]
+          env:
+            - { name: AWS_BUCKET, value: tb-berkas }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          resources:
+            requests: { cpu: 50m, memory: 96Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+          volumeMounts:
+            - { name: storage, mountPath: /var/www/html/storage }
+            - { name: cache, mountPath: /var/www/html/bootstrap/cache }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - { name: storage, emptyDir: {} }
+        - { name: cache, emptyDir: {} }
+        - { name: tmp, emptyDir: {} }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: scheduler, namespace: nim-00000000 }
+spec:
+  replicas: 1                            # JANGAN dinaikkan
+  selector: { matchLabels: { app: scheduler } }
+  template:
+    metadata: { labels: { app: scheduler } }
+    spec:
+      terminationGracePeriodSeconds: 40  # job yang sedang jalan sempat selesai
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 33
+        runAsGroup: 33
+        fsGroup: 33
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: scheduler
+          image: tb-web:1.0
+          imagePullPolicy: IfNotPresent
+          command: [php, artisan, schedule:work]
+          envFrom: [{ secretRef: { name: tb-rahasia } }]
+          env:
+            - { name: AWS_BUCKET, value: tb-berkas }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          resources:
+            requests: { cpu: 50m, memory: 96Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+          volumeMounts:
+            - { name: storage, mountPath: /var/www/html/storage }
+            - { name: cache, mountPath: /var/www/html/bootstrap/cache }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - { name: storage, emptyDir: {} }
+        - { name: cache, emptyDir: {} }
+        - { name: tmp, emptyDir: {} }

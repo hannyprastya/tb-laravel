@@ -1,0 +1,12 @@
+# deploy/compose/workers.yml (P11 Bagian B; di modul: docker-compose.workers.yml):
+# batasi worker Apache. Pakai: tambahkan ke COMPOSE_FILE, lalu isi WORKERS:
+#   COMPOSE_FILE=$COMPOSE_FILE:deploy/compose/workers.yml WORKERS=1 \
+#     docker compose up -d --wait
+# Image starter sudah membaca $WORKERS sendiri; berkas apache-proses.conf
+# dipasang supaya langkah modul (workers.conf) tetap sama dan terlihat.
+services:
+  app:
+    environment:
+      WORKERS: ${WORKERS:-1}
+    volumes:
+      - ./deploy/compose/apache-proses.conf:/etc/apache2/conf-enabled/workers.conf:ro

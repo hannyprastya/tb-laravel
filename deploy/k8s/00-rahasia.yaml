@@ -1,0 +1,27 @@
+# deploy/k8s/00-rahasia.yaml: namespace + Secret aplikasi (P8, P13).
+# Ganti nim-00000000 dengan nim-NIM milik pemilik klaster di SEMUA berkas
+# folder ini (P13 A.1).
+#
+# Nilai di bawah hanya PLACEHOLDER dan password latihan klaster lab. Jangan
+# menulis secret sungguhan di repo. Cara membuat Secret yang benar
+# (langsung ke klaster, tanpa berkas):
+#   KEY=$(docker run --rm --entrypoint php tb-web:1.0 artisan key:generate --show)
+#   kubectl -n nim-NIM create secret generic tb-rahasia \
+#     --from-literal=APP_KEY="$KEY" \
+#     --from-literal=DATABASE_URL=postgresql://app:latihan@db:5432/app \
+#     --from-literal=POSTGRES_PASSWORD=latihan
+# lalu apply berkas lain saja: kubectl apply -f deploy/k8s/10-db.yaml dst.
+# Berkas di folder ini diberi nomor supaya kubectl apply -f deploy/k8s/
+# membuat namespace dan Secret lebih dulu.
+apiVersion: v1
+kind: Namespace
+metadata: { name: nim-00000000 }
+---
+apiVersion: v1
+kind: Secret
+metadata: { name: tb-rahasia, namespace: nim-00000000 }
+type: Opaque
+stringData:
+  APP_KEY: "GANTI-dengan-hasil-php-artisan-key:generate--show"
+  DATABASE_URL: "postgresql://app:latihan@db:5432/app"   # password latihan lab
+  POSTGRES_PASSWORD: "latihan"                            # password latihan lab

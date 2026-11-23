@@ -1,0 +1,6 @@
+# state dan variabel lokal tidak masuk repo (P14 slide 27)
+*.tfstate
+*.tfstate.*
+*.tfvars
+# provider hasil terraform init (besar, diunduh ulang)
+.terraform/

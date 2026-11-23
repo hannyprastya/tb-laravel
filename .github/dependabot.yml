@@ -1,0 +1,29 @@
+# .github/dependabot.yml (P12 slide 19): PR otomatis bila ada versi aman
+version: 2
+updates:
+  - package-ecosystem: "composer"        # web/composer.lock (Laravel, AWS SDK, ...)
+    directory: "/web"
+    schedule: { interval: "weekly" }
+    cooldown: { default-days: 7 }        # versi baru ditunggu 7 hari
+    groups:                              # satu PR untuk semua paket minor/patch
+      composer-minor:
+        update-types: ["minor", "patch"]
+  - package-ecosystem: "npm"             # web/package-lock.json (Vite, Tailwind)
+    directory: "/web"
+    schedule: { interval: "weekly" }
+    cooldown: { default-days: 7 }
+    groups:
+      npm-minor:
+        update-types: ["minor", "patch"]
+  - package-ecosystem: "docker"          # digest FROM di web/Dockerfile*
+    directory: "/web"
+    schedule: { interval: "weekly" }
+    cooldown: { default-days: 7 }
+  - package-ecosystem: "github-actions"  # SHA action di ci.yml
+    directory: "/"                       # "/" = .github/workflows/
+    schedule: { interval: "weekly" }
+    cooldown: { default-days: 7 }
+  - package-ecosystem: "terraform"       # versi provider di infra/ (P14)
+    directories: ["/infra/*"]
+    schedule: { interval: "monthly" }
+    cooldown: { default-days: 7 }

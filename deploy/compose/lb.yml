@@ -1,0 +1,16 @@
+# deploy/compose/lb.yml (P13 C.2-C.3; di modul: docker-compose.lb.yml): Nginx
+# sebagai load balancer + cache di depan beberapa replika app. Dipakai
+# berlapis dengan docker-compose.yml, dari akar repo:
+#   COMPOSE_FILE=docker-compose.yml:deploy/compose/lb.yml \
+#     docker compose up -d --build --wait --scale app=2
+# Semua replika memakai volume "kunci" yang sama (APP_KEY sama), jadi sesi
+# login tetap sah walau permintaan berikutnya dijawab replika lain.
+services:
+  app:
+    ports: !reset []            # app tidak dibuka langsung; hanya lewat Nginx
+  nginx:
+    image: nginx:1.30-alpine
+    ports: ["8080:80"]
+    volumes: ["./deploy/compose/nginx.conf:/etc/nginx/conf.d/default.conf:ro"]
+    depends_on:
+      app: { condition: service_healthy }
