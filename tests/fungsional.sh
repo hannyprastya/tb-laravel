@@ -2,7 +2,7 @@
 # tests/fungsional.sh (P10 D.2): uji fungsional starter Laravel terhadap
 # compose yang sudah jalan (docker compose up -d --wait). Dipakai di CI
 # (langkah Test) dan di codespace/laptop, dari akar repo:
-#   bash tests/fungsional.sh              # semua, termasuk F-18/F-19 (db dimatikan)
+#   bash tests/fungsional.sh              # semua, termasuk F-18..F-20 (db dimatikan/macet)
 #   TANPA_DB_MATI=1 bash tests/fungsional.sh   # tanpa mematikan db
 # Uji modul kasus: bila ada web/tests/kasus.sh, berkas itu ikut dijalankan
 # (boleh memakai fungsi cek, kode, token, dan variabel URL/KUKI di bawah).
@@ -138,6 +138,7 @@ if [ -z "${TANPA_DB_MATI:-}" ]; then
   docker compose pause db >/dev/null 2>&1     # db hidup tetapi tidak menjawab
   dtk=$(curl -s -o /dev/null -m 15 -w "%{time_total}" "$URL/health")
   cek F-19 503 "$(kode "$URL/health")" "db macet: /health menyerah dalam ${dtk%.*} s (batas 3 s)"
+  cek F-20 503 "$(kode "$URL/")" "db macet: halaman biasa tetap 503 ramah, bukan 500"
   docker compose unpause db >/dev/null 2>&1
   tunggu_pulih
 fi

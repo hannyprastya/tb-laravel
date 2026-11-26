@@ -30,6 +30,18 @@ class DbGagal
             return true;
         }
 
+        // Database macet (docker compose pause db, timeout 3 s): pdo_pgsql
+        // memberi kode driver 7, bukan SQLSTATE, walau pesannya
+        // "SQLSTATE[08006] [7] ... timeout expired". SQLSTATE dibaca juga
+        // dari pesan supaya rute biasa tetap 503, bukan 500. Yang dibaca
+        // hanya pesan driver dan hanya di awalnya: pesan QueryException
+        // memuat teks SQL beserta nilai dari pengguna, jadi input berisi
+        // "SQLSTATE[08006]" tidak boleh mengubah error SQL biasa menjadi 503.
+        $asal = $e instanceof QueryException ? ($e->getPrevious() ?? $e) : $e;
+        if (preg_match('/^SQLSTATE\[(08\w{3}|57P0[123])\]/', $asal->getMessage()) === 1) {
+            return true;
+        }
+
         return (new LostConnectionDetector)->causedByLostConnection($e);
     }
 

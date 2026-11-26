@@ -56,7 +56,7 @@ tb-kelNo/
 | `deploy/k8s/` | manifest kind: Secret, db, Job migrasi, web, worker + scheduler, HPA (P8, P13) |
 | `infra/` | satu komponen Terraform per anggota (P14), diuji ke Floci |
 | `observability/` | alert error 5xx dan dasbor SLO yang dimuat Grafana (P11) |
-| `tests/` | uji fungsional F-01..F-19 (P10, P15), pemantau `/health` (P10 F.3), skrip k6 (P10, P11, P13) |
+| `tests/` | uji fungsional F-01..F-20 (P10, P15), pemantau `/health` (P10 F.3), skrip k6 (P10, P11, P13) |
 | `docs/` | dokumen kelompok; lihat [docs/README.md](docs/README.md) |
 
 ## Cara menjalankan
@@ -105,7 +105,7 @@ berkas pertama tetap `docker-compose.yml`).
 # aplikasi lengkap (P7): http://localhost:8080
 docker compose up -d --build --wait
 curl -fsS localhost:8080/health          # {"status":"ok","db":"ok"}
-bash tests/fungsional.sh                 # F-18/F-19 mematikan db sebentar
+bash tests/fungsional.sh                 # F-18..F-20 mematikan/membekukan db sebentar
 bash tests/pantau.sh                     # jam + kode /health tiap 2 s (P10 F.3)
 docker compose logs -f app worker        # log (stderr) aplikasi dan worker
 
@@ -195,7 +195,7 @@ biasa (P10 A).
 9. **Dokumen:** catat perpindahan sebagai ADR baru di `docs/adr/` (alasan,
    akibat, apa yang berubah di pengujian), perbarui diagram container
    (`web`, `worker`, `scheduler`, object storage) dan Tabel 1 uji fungsional
-   (`tests/fungsional.sh` sekarang F-01..F-19).
+   (`tests/fungsional.sh` sekarang F-01..F-20).
 10. Buka pull request; pipeline harus hijau sebelum di-merge.
 
 ## Padanan langkah modul (buku tamu) → starter Laravel
@@ -207,7 +207,7 @@ ini. Hasil yang dicatat di laporan diambil dari starter.
 | P | Langkah modul (buku tamu) | Di starter Laravel |
 |---|---------------------------|--------------------|
 | P10 | `docker build -t NAMA .` | `docker build -t NAMA web` (konteks `web/`) |
-| P10 | test di CI: `compose up --wait` + `curl -f /health` | sama, lalu `bash tests/fungsional.sh` (F-01..F-19) |
+| P10 | test di CI: `compose up --wait` + `curl -f /health` | sama, lalu `bash tests/fungsional.sh` (F-01..F-20) |
 | P10 | F-02 `POST /tamu` dengan `curl -d nama=…` | formulir butuh token CSRF: `tests/fungsional.sh` mengambil token dulu (F-05); tanpa token = 419 (F-07). Untuk curl/k6 pakai `POST /api/tamu` |
 | P10 | F-03 nama kosong → 400 | validasi Laravel: 302 kembali ke formulir + pesan; dengan `Accept: application/json` → 422 (F-06, F-17) |
 | P10 | F-04 nama berupa array (baris 42 `index.php`, `is_string`) | aturan `'string'` di `$request->validate()` + Feature test `BukuTamuTest::test_nama_berupa_array_ditolak` |
@@ -232,7 +232,7 @@ ini. Hasil yang dicatat di laporan diambil dari starter.
 | P14 F | SQS + fungsi PHP (Bref) | antrean Laravel ke SQS Floci (`QUEUE_CONNECTION=sqs`), worker = konsumen; idempotensi di `KirimNotifikasi` |
 | P15 C | `db()` dengan `PDO::ATTR_TIMEOUT => 3` | `web/config/database.php` (`DB_TIMEOUT`, bawaan 3) |
 | P15 C | `maaf()` → 503 + `Retry-After` | exception handler di `web/bootstrap/app.php` + `web/app/Support/DbGagal.php`; view `errors/db-gagal` |
-| P15 E | `docker compose stop db` | sama (F-18); `docker compose pause db` = DB macet, `/health` menyerah dalam 3 s (F-19) |
+| P15 E | `docker compose stop db` | sama (F-18); `docker compose pause db` = DB macet, `/health` menyerah dalam 3 s (F-19), halaman biasa tetap 503 ramah (F-20) |
 
 ## Render, Neon, dan object storage
 
