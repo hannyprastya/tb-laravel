@@ -23,6 +23,10 @@ provider "aws" {
 # Dipakai aplikasi dengan env AWS_BUCKET = output "bucket".
 resource "aws_s3_bucket" "file" {
   bucket = "tb-${var.nim}-berkas"
+  # Bucket lab (Floci): destroy ikut menghapus isi dan semua versinya;
+  # tanpa ini destroy gagal BucketNotEmpty setelah aplikasi mengunggah.
+  # Jangan dipakai untuk bucket berisi data sungguhan.
+  force_destroy = true
 }
 resource "aws_s3_bucket_public_access_block" "file" {
   bucket                  = aws_s3_bucket.file.id
