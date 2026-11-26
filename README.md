@@ -69,8 +69,11 @@ tb-kelNo/
    docker compose up -d --build --wait     # build pertama butuh beberapa menit
    bash tests/fungsional.sh                # semua F-xx harus "Lulus"
    ```
-3. Tab *Ports*: buka port **8080** (aplikasi). Port 3000 (Grafana) dan 4566
-   (Floci) ikut muncul saat dipakai.
+3. Tab *Ports*: buka port **8080** (aplikasi; ikon bola dunia di kolom
+   *Forwarded Address*). Bila 8080 belum ada di daftar (aplikasi sudah jalan
+   sebelum editor dibuka), klik *Forward a Port*, ketik `8080`, Enter. Port
+   3000 (Grafana) dan 4566 (Floci) ikut muncul saat dipakai. Saat codespace
+   pertama dibuka, pilih *Trust Folder & Continue* (repo kelompok sendiri).
 
 Kebutuhan sumber daya (perkiraan):
 
@@ -170,16 +173,28 @@ biasa (P10 A).
 1. **Branch baru:** `git switch -c pindah-laravel`.
 2. **Hapus aplikasi lama**, dokumen tetap:
    ```bash
-   git rm -r index.php composer.json composer.lock .htaccess Dockerfile \
-     Dockerfile.otel .dockerignore docker-compose.otel.yml \
-     docker-compose.workers.yml workers.conf docker-compose.lb.yml nginx.conf k8s
+   git rm -r --ignore-unmatch index.php composer.json composer.lock .htaccess \
+     Dockerfile Dockerfile.otel .dockerignore docker-compose.otel.yml \
+     docker-compose.workers.yml workers.conf docker-compose.lb.yml nginx.conf \
+     otel.php pantau.sh k8s
    ```
-   (hapus hanya yang memang ada; repo yang memakai folder `app/` cukup
-   `git rm -r app k8s deploy`). **Jangan** menghapus `docs/`.
-3. **Salin starter** ke akar repo: `web/`, `deploy/`, `infra/`,
+   (`--ignore-unmatch`: berkas yang tidak ada dilewati; tanpa itu `git rm`
+   membatalkan semuanya. Repo yang memakai folder `app/` cukup
+   `git rm -r --ignore-unmatch app k8s deploy pantau.sh`). **Jangan**
+   menghapus `docs/`.
+3. **Salin starter** ke akar repo. Ambil starter ke folder sementara di
+   luar repo, lalu salin dari akar repo kelompok:
+   ```bash
+   git clone --depth 1 https://github.com/hannyprastya/tb-laravel /tmp/starter
+   cp -R /tmp/starter/{web,deploy,infra,observability,tests,.github} .
+   cp /tmp/starter/{docker-compose.yml,trivy-secret.yaml,.trivyignore.yaml,.gitignore} .
+   cp /tmp/starter/README.md README-starter.md
+   ```
+   Yang disalin: `web/`, `deploy/`, `infra/`,
    `observability/`, `tests/`, `.github/`, `docker-compose.yml`,
    `trivy-secret.yaml`, `.trivyignore.yaml`, `.gitignore`, dan README ini
-   (gabungkan dengan bagian anggota/kontribusi README lama). Folder `infra/`
+   (`README-starter.md`: gabungkan ke `README.md` lama yang berisi anggota
+   dan kontribusi, lalu hapus `README-starter.md`). Folder `infra/`
    milik anggota yang sudah ada tetap dipakai, cukup ditambah.
 4. **Identitas kelompok:** ganti nilai bawaan `APP_PEMILIK` di
    `docker-compose.yml` (mis. `Kelompok 3 - Klinik Pratama`), dan
