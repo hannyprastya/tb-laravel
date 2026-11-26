@@ -44,6 +44,7 @@ class LoginRequest extends FormRequest
 
         if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
             RateLimiter::hit($this->throttleKey());
+            RateLimiter::hit($this->throttleKeyEmail(), 600);
 
             throw ValidationException::withMessages([
                 'email' => trans('auth.failed'),
@@ -51,6 +52,7 @@ class LoginRequest extends FormRequest
         }
 
         RateLimiter::clear($this->throttleKey());
+        RateLimiter::clear($this->throttleKeyEmail());
     }
 
     /**
@@ -60,13 +62,22 @@ class LoginRequest extends FormRequest
      */
     public function ensureIsNotRateLimited(): void
     {
-        if (! RateLimiter::tooManyAttempts($this->throttleKey(), 5)) {
+        // Dua batas: 5 kali per email + IP (bawaan Breeze), dan 10 kali per
+        // email dari IP mana pun dalam 10 menit. Batas kedua perlu karena IP
+        // bisa dipalsukan lewat X-Forwarded-For saat port aplikasi dibuka
+        // langsung (codespace, laptop) dan karena penyerang bisa berganti IP.
+        $kunci = match (true) {
+            RateLimiter::tooManyAttempts($this->throttleKey(), 5) => $this->throttleKey(),
+            RateLimiter::tooManyAttempts($this->throttleKeyEmail(), 10) => $this->throttleKeyEmail(),
+            default => null,
+        };
+        if ($kunci === null) {
             return;
         }
 
         event(new Lockout($this));
 
-        $seconds = RateLimiter::availableIn($this->throttleKey());
+        $seconds = RateLimiter::availableIn($kunci);
 
         throw ValidationException::withMessages([
             'email' => trans('auth.throttle', [
@@ -82,5 +93,23 @@ class LoginRequest extends FormRequest
     public function throttleKey(): string
     {
         return Str::transliterate(Str::lower($this->string('email')).'|'.$this->ip());
+    }
+
+    /**
+     * Kunci batas per email saja (tanpa IP).
+     */
+    public function throttleKeyEmail(): string
+    {
+        return self::kunciEmail((string) $this->string('email'));
+    }
+
+    /**
+     * Kunci batas per email. Trade-off: orang lain bisa sengaja mengunci
+     * akun selama 10 menit; pemilik tetap bisa masuk lewat reset password,
+     * yang membuka kunci ini (NewPasswordController).
+     */
+    public static function kunciEmail(string $email): string
+    {
+        return 'login-email|'.Str::transliterate(Str::lower($email));
     }
 }
