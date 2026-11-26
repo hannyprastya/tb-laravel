@@ -26,7 +26,7 @@ spec:
           image: tb-web:1.0
           imagePullPolicy: IfNotPresent
           command: [php, artisan, queue:work, --tries=3, --max-time=3600]
-          envFrom: [{ secretRef: { name: tb-rahasia } }]
+          envFrom: [{ secretRef: { name: tb-rahasia } }, { secretRef: { name: tb-kunci } }]   # tb-kunci = APP_KEY
           env:
             - { name: AWS_BUCKET, value: tb-berkas }
           securityContext:
@@ -66,7 +66,7 @@ spec:
           image: tb-web:1.0
           imagePullPolicy: IfNotPresent
           command: [php, artisan, schedule:work]
-          envFrom: [{ secretRef: { name: tb-rahasia } }]
+          envFrom: [{ secretRef: { name: tb-rahasia } }, { secretRef: { name: tb-kunci } }]   # tb-kunci = APP_KEY
           env:
             - { name: AWS_BUCKET, value: tb-berkas }
           securityContext:

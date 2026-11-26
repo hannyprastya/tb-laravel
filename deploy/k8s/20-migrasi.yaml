@@ -22,7 +22,7 @@ spec:
           image: tb-web:1.0
           imagePullPolicy: IfNotPresent
           command: [php, artisan, migrate, --force]
-          envFrom: [{ secretRef: { name: tb-rahasia } }]
+          envFrom: [{ secretRef: { name: tb-rahasia } }, { secretRef: { name: tb-kunci } }]   # tb-kunci = APP_KEY
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

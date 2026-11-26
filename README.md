@@ -143,9 +143,14 @@ QUEUE_CONNECTION=sqs docker compose up -d --wait
 # mode satu container seperti di Render (worker + scheduler di dalam app)
 JALANKAN_WORKER=1 docker compose up -d --wait --scale worker=0 --scale scheduler=0
 
-# Kubernetes lokal (P13): kind + HPA
+# Kubernetes lokal (P13): kind + HPA (ganti nim-NIM di deploy/k8s/ dulu)
 docker build -t tb-web:1.0 web && kind load docker-image tb-web:1.0 --name cc-lab
-kubectl apply -f deploy/k8s/
+kubectl apply -f deploy/k8s/       # Pod web/worker menunggu Secret tb-kunci
+KEY=$(docker run --rm --entrypoint php tb-web:1.0 artisan key:generate --show)
+kubectl -n nim-NIM create secret generic tb-kunci --from-literal=APP_KEY="$KEY"
+kubectl -n nim-NIM get pods -w     # db, migrasi Completed, web 1/1
+# Pod migrasi Error 1-2 kali di awal itu normal (db belum siap; dicoba ulang).
+# Data db di PVC: tetap ada saat rollout restart / mesh (P13 B.4).
 
 # berhenti; -v juga menghapus data database dan kunci lab
 docker compose down

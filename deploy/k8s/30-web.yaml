@@ -20,7 +20,7 @@ spec:
         - name: web
           image: tb-web:1.0
           imagePullPolicy: IfNotPresent  # image dari kind load, bukan registry
-          envFrom: [{ secretRef: { name: tb-rahasia } }]   # APP_KEY, DATABASE_URL
+          envFrom: [{ secretRef: { name: tb-rahasia } }, { secretRef: { name: tb-kunci } }]   # DATABASE_URL; APP_KEY
           env:
             - { name: APP_PEMILIK, value: "Kelompok 0 - Starter Laravel" }
             - { name: MIGRASI_SAAT_START, value: "0" }      # migrasi lewat Job

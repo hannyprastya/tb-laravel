@@ -1,10 +1,21 @@
 # deploy/k8s/10-db.yaml (P8 B.4): PostgreSQL 17 untuk klaster lab. Data di
-# emptyDir: hilang bila Pod dihapus (cukup untuk latihan). Produksi: Neon.
+# PersistentVolumeClaim (storage class bawaan kind): tetap ada saat Pod
+# di-restart (rollout restart, mesh P13 B.4), hilang saat klaster dihapus.
+# Produksi: Neon. Strategi Recreate: dua Pod postgres tidak boleh memakai
+# folder data yang sama.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: { name: db-data, namespace: nim-00000000 }
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: { requests: { storage: 1Gi } }
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata: { name: db, namespace: nim-00000000 }
 spec:
   replicas: 1
+  strategy: { type: Recreate }
   selector: { matchLabels: { app: db } }
   template:
     metadata: { labels: { app: db } }
@@ -20,6 +31,7 @@ spec:
           image: postgres:17-alpine
           env:
             - { name: POSTGRES_USER, value: app }
+            - { name: PGDATA, value: /var/lib/postgresql/data/pgdata }   # subfolder: initdb tidak boleh chmod folder mount
             - name: POSTGRES_PASSWORD
               valueFrom: { secretKeyRef: { name: tb-rahasia, key: POSTGRES_PASSWORD } }
           ports: [{ containerPort: 5432 }]
@@ -28,7 +40,7 @@ spec:
             periodSeconds: 3
           securityContext:
             allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true # tulis hanya ke emptyDir
+            readOnlyRootFilesystem: true # tulis hanya ke volume
             capabilities: { drop: [ALL] }
           resources:
             requests: { cpu: 100m, memory: 64Mi }
@@ -38,7 +50,7 @@ spec:
             - { name: run, mountPath: /var/run/postgresql }
             - { name: tmp, mountPath: /tmp }
       volumes:
-        - { name: data, emptyDir: {} }
+        - { name: data, persistentVolumeClaim: { claimName: db-data } }
         - { name: run, emptyDir: {} }
         - { name: tmp, emptyDir: {} }
 ---
