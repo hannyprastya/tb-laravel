@@ -73,6 +73,10 @@ WORKDIR /var/www/html
 FROM dasar AS uji
 COPY --from=vendor-dev /app/vendor ./vendor
 COPY . .
+# Izin kode dari host bisa terlalu sempit (mis. folder 754 hasil unzip di
+# codespace, berkas dari Windows): semua kode harus bisa dibaca www-data.
+RUN find . -path ./vendor -prune -o \( -type d ! -perm -0555 -o -type f ! -perm -0444 \) \
+      -exec chmod a+rX {} +
 # .env kosong: nilai uji dari phpunit.xml dan env container
 RUN touch .env \
  && mkdir -p storage/app/private storage/framework/cache/data \
@@ -88,6 +92,10 @@ FROM dasar AS produksi
 COPY --from=vendor /app/vendor ./vendor
 COPY . .
 COPY --from=aset /app/public/build ./public/build
+# Izin kode dari host bisa terlalu sempit (mis. folder 754 hasil unzip di
+# codespace, berkas dari Windows): semua kode harus bisa dibaca www-data.
+RUN find . -path ./vendor -prune -o \( -type d ! -perm -0555 -o -type f ! -perm -0444 \) \
+      -exec chmod a+rX {} +
 # Kode milik root dan hanya-baca; yang boleh ditulis www-data hanya
 # storage/ dan bootstrap/cache (P13 C.4 hardening).
 RUN mkdir -p storage/app/private storage/framework/cache/data \
